@@ -19,6 +19,20 @@ import cv2
 from typing import Optional, Union, Tuple, List, Callable, Dict
 from IPython.display import display
 from tqdm.notebook import tqdm
+import torch.nn.functional as F
+
+
+def dilate(image, kernel_size, stride=1, padding=0):
+    """
+    Perform dilation on a binary image using a square kernel.
+    """
+    # Ensure the image is binary
+    assert image.max() <= 1 and image.min() >= 0
+    
+    # Get the maximum value in each neighborhood
+    dilated_image = F.max_pool2d(image, kernel_size, stride, padding)
+    
+    return dilated_image
 
 
 def text_under_image(image: np.ndarray, text: str, text_color: Tuple[int, int, int] = (0, 0, 0)):
@@ -34,7 +48,7 @@ def text_under_image(image: np.ndarray, text: str, text_color: Tuple[int, int, i
     return img
 
 
-def view_images(images, num_rows=1, offset_ratio=0.02):
+def view_images(images, num_rows=1, offset_ratio=0.02, display_image=True):
     if type(images) is list:
         num_empty = len(images) % num_rows
     elif images.ndim == 4:
@@ -58,10 +72,15 @@ def view_images(images, num_rows=1, offset_ratio=0.02):
                 i * num_cols + j]
 
     pil_img = Image.fromarray(image_)
-    display(pil_img)
+    if display_image:
+        display(pil_img)
+    return pil_img
 
 
-def diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=False):
+def diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=False,
+                   inference_stage=True, prox=None, quantile=0.7,
+                   image_enc=None, recon_lr=0.1, recon_t=400):
+    bs = latents.shape[0]
     if low_resource:
         noise_pred_uncond = model.unet(latents, t, encoder_hidden_states=context[0])["sample"]
         noise_prediction_text = model.unet(latents, t, encoder_hidden_states=context[1])["sample"]
@@ -69,8 +88,47 @@ def diffusion_step(model, controller, latents, context, t, guidance_scale, low_r
         latents_input = torch.cat([latents] * 2)
         noise_pred = model.unet(latents_input, t, encoder_hidden_states=context)["sample"]
         noise_pred_uncond, noise_prediction_text = noise_pred.chunk(2)
-    noise_pred = noise_pred_uncond + guidance_scale * (noise_prediction_text - noise_pred_uncond)
-    latents = model.scheduler.step(noise_pred, t, latents)["prev_sample"]
+    step_kwargs = {
+        'ref_image': None,
+        'recon_lr': 0,
+        'recon_mask': None,
+    }
+    if inference_stage and prox is not None:
+        if prox == 'l1':
+            score_delta = noise_prediction_text - noise_pred_uncond
+            if quantile > 0:
+                threshold = score_delta.abs().quantile(quantile)
+            else:
+                threshold = -quantile  # if quantile is negative, use it as a fixed threshold
+            score_delta -= score_delta.clamp(-threshold, threshold)
+            score_delta = torch.where(score_delta > 0, score_delta-threshold, score_delta)
+            score_delta = torch.where(score_delta < 0, score_delta+threshold, score_delta)
+            if (recon_t > 0 and t < recon_t) or (recon_t < 0 and t > -recon_t):
+                step_kwargs['ref_image'] = image_enc
+                step_kwargs['recon_lr'] = recon_lr
+                mask_edit = score_delta.abs() > threshold
+                mask_edit = dilate(mask_edit.float(), kernel_size=3, padding=1)
+                step_kwargs['recon_mask'] = 1 - mask_edit
+        elif prox == 'l0':
+            score_delta = noise_prediction_text - noise_pred_uncond
+            if quantile > 0:
+                threshold = score_delta.abs().quantile(quantile)
+            else:
+                threshold = -quantile  # if quantile is negative, use it as a fixed threshold
+            score_delta -= score_delta.clamp(-threshold, threshold)
+            if (recon_t > 0 and t < recon_t) or (recon_t < 0 and t > -recon_t):
+                step_kwargs['ref_image'] = image_enc
+                step_kwargs['recon_lr'] = recon_lr
+                mask_edit = score_delta.abs() > threshold
+                mask_edit = dilate(mask_edit.float(), kernel_size=3, padding=1)
+                step_kwargs['recon_mask'] = 1 - mask_edit
+        else:
+            raise NotImplementedError
+        noise_pred = noise_pred_uncond + guidance_scale * score_delta
+    else:
+        noise_pred = noise_pred_uncond + guidance_scale * (noise_prediction_text - noise_pred_uncond)
+    latents = model.scheduler.step(noise_pred, t, latents,
+                                   **step_kwargs)["prev_sample"]
     latents = controller.step_callback(latents)
     return latents
 
@@ -166,7 +224,7 @@ def text2image_ldm_stable(
         latents = diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource)
     
     image = latent2image(model.vae, latents)
-  
+
     return image, latent
 
 
