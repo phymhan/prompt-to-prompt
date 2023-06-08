@@ -2,3 +2,15 @@ images/
 outputs/
 __pycache__/
 */__pycache__/
+*.png
+*.jpg
+*.gif
+*.pdf
+*.eps
+*.svg
+*.csv
+*.txt
+*.log
+*.out
+*.aux
+*.zip

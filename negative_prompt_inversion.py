@@ -43,10 +43,6 @@ NUM_DDIM_STEPS = 50
 MAX_NUM_WORDS = 77
 LATENT_SIZE = (64, 64)
 
-scheduler = DDIMSchedulerDev(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
-ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", scheduler=scheduler).to(device)
-tokenizer = ldm_stable.tokenizer
-
 
 class LocalBlend:
     
@@ -76,7 +72,8 @@ class LocalBlend:
             x_t = x_t[:1] + mask * (x_t - x_t[:1])
         return x_t
 
-    def __init__(self, prompts: List[str], words: [List[List[str]]], substruct_words=None, start_blend=0.2, th=(.3, .3)):
+    def __init__(self, prompts: List[str], words: [List[List[str]]], substruct_words=None, start_blend=0.2, th=(.3, .3),
+                 tokenizer=None):
         alpha_layers = torch.zeros(len(prompts),  1, 1, 1, 1, MAX_NUM_WORDS)
         for i, (prompt, words_) in enumerate(zip(prompts, words)):
             if type(words_) is str:
@@ -243,7 +240,7 @@ class AttentionControlEdit(AttentionStore, abc.ABC):
     def __init__(self, prompts, num_steps: int,
                  cross_replace_steps: Union[float, Tuple[float, float], Dict[str, Tuple[float, float]]],
                  self_replace_steps: Union[float, Tuple[float, float]],
-                 local_blend: Optional[LocalBlend]):
+                 local_blend: Optional[LocalBlend], tokenizer=None):
         super(AttentionControlEdit, self).__init__()
         self.batch_size = len(prompts)
         self.cross_replace_alpha = ptp_utils.get_time_words_attention_alpha(prompts, num_steps, cross_replace_steps, tokenizer).to(device)
@@ -252,16 +249,17 @@ class AttentionControlEdit(AttentionStore, abc.ABC):
         self.num_self_replace = int(num_steps * self_replace_steps[0]), int(num_steps * self_replace_steps[1])
         self.local_blend = local_blend
 
+
 class AttentionReplace(AttentionControlEdit):
 
     def replace_cross_attention(self, attn_base, att_replace):
         return torch.einsum('hpw,bwn->bhpn', attn_base, self.mapper)
       
     def __init__(self, prompts, num_steps: int, cross_replace_steps: float, self_replace_steps: float,
-                 local_blend: Optional[LocalBlend] = None):
+                 local_blend: Optional[LocalBlend] = None, tokenizer=None):
         super(AttentionReplace, self).__init__(prompts, num_steps, cross_replace_steps, self_replace_steps, local_blend)
         self.mapper = seq_aligner.get_replacement_mapper(prompts, tokenizer).to(device)
-        
+
 
 class AttentionRefine(AttentionControlEdit):
 
@@ -272,7 +270,7 @@ class AttentionRefine(AttentionControlEdit):
         return attn_replace
 
     def __init__(self, prompts, num_steps: int, cross_replace_steps: float, self_replace_steps: float,
-                 local_blend: Optional[LocalBlend] = None):
+                 local_blend: Optional[LocalBlend] = None, tokenizer=None):
         super(AttentionRefine, self).__init__(prompts, num_steps, cross_replace_steps, self_replace_steps, local_blend)
         self.mapper, alphas = seq_aligner.get_refinement_mapper(prompts, tokenizer)
         self.mapper, alphas = self.mapper.to(device), alphas.to(device)
@@ -296,7 +294,7 @@ class AttentionReweight(AttentionControlEdit):
 
 
 def get_equalizer(text: str, word_select: Union[int, Tuple[int, ...]], values: Union[List[float],
-                  Tuple[float, ...]]):
+                  Tuple[float, ...]], tokenizer=None):
     if type(word_select) is int or type(word_select) is str:
         word_select = (word_select,)
     equalizer = torch.ones(1, 77)
@@ -307,17 +305,19 @@ def get_equalizer(text: str, word_select: Union[int, Tuple[int, ...]], values: U
     return equalizer
 
 
-def make_controller(prompts: List[str], is_replace_controller: bool, cross_replace_steps: Dict[str, float], self_replace_steps: float, blend_words=None, equilizer_params=None) -> AttentionControlEdit:
+def make_controller(pipeline, prompts: List[str], is_replace_controller: bool, cross_replace_steps: Dict[str, float], self_replace_steps: float, blend_words=None, equilizer_params=None) -> AttentionControlEdit:
     if blend_words is None:
         lb = None
     else:
-        lb = LocalBlend(prompts, blend_words)
+        lb = LocalBlend(prompts, blend_words, tokenizer=pipeline.tokenizer)
     if is_replace_controller:
-        controller = AttentionReplace(prompts, NUM_DDIM_STEPS, cross_replace_steps=cross_replace_steps, self_replace_steps=self_replace_steps, local_blend=lb)
+        controller = AttentionReplace(prompts, NUM_DDIM_STEPS, cross_replace_steps=cross_replace_steps, self_replace_steps=self_replace_steps, local_blend=lb,
+                                      tokenizer=pipeline.tokenizer)
     else:
-        controller = AttentionRefine(prompts, NUM_DDIM_STEPS, cross_replace_steps=cross_replace_steps, self_replace_steps=self_replace_steps, local_blend=lb)
+        controller = AttentionRefine(prompts, NUM_DDIM_STEPS, cross_replace_steps=cross_replace_steps, self_replace_steps=self_replace_steps, local_blend=lb,
+                                     tokenizer=pipeline.tokenizer)
     if equilizer_params is not None:
-        eq = get_equalizer(prompts[1], equilizer_params["words"], equilizer_params["values"])
+        eq = get_equalizer(prompts[1], equilizer_params["words"], equilizer_params["values"], tokenizer=pipeline.tokenizer)
         controller = AttentionReweight(prompts, NUM_DDIM_STEPS, cross_replace_steps=cross_replace_steps,
                                        self_replace_steps=self_replace_steps, equalizer=eq, local_blend=lb, controller=controller)
     return controller
@@ -464,8 +464,6 @@ class NegativePromptInversion:
         self.prompt = None
         self.context = None
 
-# null_inversion = NullInversion(ldm_stable)
-null_inversion = NegativePromptInversion(ldm_stable)
 
 # %% [markdown]
 # ## Infernce Code
@@ -529,13 +527,13 @@ def text2image_ldm_stable(
     return image, latent
 
 
-def run_and_display(prompts, controller, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, verbose=True,
+def run_and_display(pipeline, prompts, controller, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, verbose=True,
                     inference_stage=True, prox=None, quantile=0.7, image_enc=None, recon_lr=0.1, recon_t=400, guidance_scale=7.5):
     if run_baseline:
         print("w.o. prompt-to-prompt")
-        images, latent = run_and_display(prompts, EmptyControl(), latent=latent, run_baseline=False, generator=generator)
+        images, latent = run_and_display(pipeline, prompts, EmptyControl(), latent=latent, run_baseline=False, generator=generator)
         print("with prompt-to-prompt")
-    images, x_t = text2image_ldm_stable(ldm_stable, prompts, controller, latent=latent, num_inference_steps=NUM_DDIM_STEPS,
+    images, x_t = text2image_ldm_stable(pipeline, prompts, controller, latent=latent, num_inference_steps=NUM_DDIM_STEPS,
                                         guidance_scale=guidance_scale, generator=generator, uncond_embeddings=uncond_embeddings,
                                         inference_stage=inference_stage, prox=prox, quantile=quantile,
                                         image_enc=image_enc, recon_lr=recon_lr, recon_t=recon_t)
@@ -560,6 +558,8 @@ def main(
         self_replace_steps=0.6,
         blend_word=None,
         eq_params=None,
+        offsets=(0,0,0,0),
+        is_replace_controller=False,
 ):
     GUIDANCE_SCALE = guidance_scale
     PROXIMAL = proximal
@@ -580,17 +580,20 @@ def main(
         PREFIX = f'{PREFIX}-rec-{RECON_T}-{RECON_LR}'
     
     os.makedirs(output_dir, exist_ok=True)
-    
-    (image_gt, image_enc, image_enc_latent), x_t, uncond_embeddings = null_inversion.invert(image_path, prompt_src, offsets=(0,0,0,0), verbose=True)
-    # (_, _), x_t, uncond_embeddings = null_inversion.invert(image_path, prompt, offsets=(0,0,200,0), verbose=True)
+
+    scheduler = DDIMSchedulerDev(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
+    ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", scheduler=scheduler).to(device)
+    # tokenizer = ldm_stable.tokenizer
+
+    null_inversion = NegativePromptInversion(ldm_stable)
+    (image_gt, image_enc, image_enc_latent), x_t, uncond_embeddings = null_inversion.invert(image_path, prompt_src, offsets=offsets, verbose=True)
     if not os.path.exists(f"{output_dir}/image-gt.png"):
         Image.fromarray(image_gt).save(f"{output_dir}/image-gt.png")
-    print("Modify or remove offsets according to your image!")
 
     # %%
     prompts = [prompt_src]
     controller = AttentionStore()
-    image_inv, x_t = run_and_display(prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings, verbose=False,
+    image_inv, x_t = run_and_display(ldm_stable, prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings, verbose=False,
                                     inference_stage=False, guidance_scale=GUIDANCE_SCALE)
     print("showing from left to right: the ground truth image, the vq-autoencoder reconstruction, the null-text inverted image")
 
@@ -606,16 +609,17 @@ def main(
     ########## edit ##########
     prompts = [prompt_src, prompt_tar]
     cross_replace_steps = {'default_': cross_replace_steps,}
-    if blend_word is not None:
+    if isinstance(blend_word, str):
         s1, s2 = blend_word.split(",")
         blend_word = (((s1,), (s2,))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
-    if eq_params is not None:
+    if isinstance(eq_params, str):
         s1, s2 = eq_params.split(",")
         eq_params = {"words": (s1,), "values": (float(s2),)} # amplify attention to the word "tiger" by *2 
-    controller = make_controller(prompts, False, cross_replace_steps, self_replace_steps, blend_word, eq_params)
-    images, _ = run_and_display(prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings,
+    controller = make_controller(ldm_stable, prompts, is_replace_controller, cross_replace_steps, self_replace_steps, blend_word, eq_params)
+    images, _ = run_and_display(ldm_stable, prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings,
                                 guidance_scale=GUIDANCE_SCALE,
                                 **inference_kwargs)
+
     Image.fromarray(np.concatenate(images, axis=1)).save(f"{output_dir}/{PREFIX}_{suffix}.png")
 
 
