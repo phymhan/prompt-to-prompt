@@ -8,6 +8,15 @@ See `run_npi.py` for examples.
 
 ## Citation
 ```bibtex
+@article{han2023improving,
+  title={Improving Negative-Prompt Inversion via Proximal Guidance},
+  author={Han, Ligong and Wen, Song and Chen, Qi and Zhang, Zhixing and Song, Kunpeng and Ren, Mengwei and Gao, Ruijiang and Chen, Yuxiao and Liu, Di and Zhangli, Qilong and Stathopoulos, Anastasis and Jiang, Jindong and Xia, Zhaoyang and Srivastava, Akash and Metaxas, Dimitris},
+  journal={arXiv preprint arXiv:2306.05414},
+  year={2023}
+}
+```
+
+```bibtex
 @article{miyake2023negative,
   title={Negative-prompt Inversion: Fast Image Inversion for Editing with Text-guided Diffusion Models},
   author={Miyake, Daiki and Iohara, Akihiro and Saito, Yu and Tanaka, Toshiyuki},
