@@ -1,39 +1,4 @@
-# %% [markdown]
-# ## Copyright 2022 Google LLC. Double-click for license information.
-
-# %%
-# Copyright 2022 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-# %% [markdown]
-# # Null-text inversion + Editing with Prompt-to-Prompt
-
-# %%
-from typing import Optional, Union, Tuple, List, Callable, Dict
-from tqdm.notebook import tqdm
-import torch
-from diffusers import StableDiffusionPipeline, DDIMScheduler
-import torch.nn.functional as nnf
-import numpy as np
-import abc
-import ptp_utils
-import seq_aligner
-import shutil
-from torch.optim.adam import Adam
-from PIL import Image
-import os
-
+# Example of running NPI and ProxNPI
 
 if __name__ == "__main__":
     from negative_prompt_inversion import main

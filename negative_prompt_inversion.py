@@ -45,7 +45,7 @@ LATENT_SIZE = (64, 64)
 
 
 class LocalBlend:
-    
+
     def get_mask(self, maps, alpha, use_pool):
         k = 1
         maps = (maps * alpha).sum(-1).mean(1)
@@ -97,13 +97,10 @@ class LocalBlend:
         self.start_blend = int(start_blend * NUM_DDIM_STEPS)
         self.counter = 0 
         self.th=th
-
-
         
         
 class EmptyControl:
-    
-    
+
     def step_callback(self, x_t):
         return x_t
     
@@ -154,7 +151,7 @@ class AttentionControl(abc.ABC):
         self.cur_att_layer = 0
 
 class SpatialReplace(EmptyControl):
-    
+
     def step_callback(self, x_t):
         if self.cur_step < self.stop_inject:
             b = x_t.shape[0]
@@ -191,7 +188,6 @@ class AttentionStore(AttentionControl):
     def get_average_attention(self):
         average_attention = {key: [item / self.cur_step for item in self.attention_store[key]] for key in self.attention_store}
         return average_attention
-
 
     def reset(self):
         super(AttentionStore, self).reset()
@@ -323,10 +319,6 @@ def make_controller(pipeline, prompts: List[str], is_replace_controller: bool, c
     return controller
 
 
-# %% [markdown]
-# ## Null Text Inversion code
-
-# %%
 def load_512(image_path, left=0, right=0, top=0, bottom=0):
     if type(image_path) is str:
         image = np.array(Image.open(image_path))[:, :, :3]
@@ -440,21 +432,19 @@ class NegativePromptInversion:
         ddim_latents = self.ddim_loop(latent)
         return image_rec, ddim_latents, latent
 
-    def invert(self, image_path: str, prompt: str, offsets=(0,0,0,0), num_inner_steps=10, early_stop_epsilon=1e-5, verbose=False):
+    def invert(self, image_path: str, prompt: str, offsets=(0,0,0,0), npi_interp=0.0, verbose=False):
         self.init_prompt(prompt)
         ptp_utils.register_attention_control(self.model, None)
         image_gt = load_512(image_path, *offsets)
         if verbose:
             print("DDIM inversion...")
         image_rec, ddim_latents, image_rec_latent = self.ddim_inversion(image_gt)
-        # if verbose:
-        #     print("Null-text optimization...")
-        # uncond_embeddings = self.null_optimization(ddim_latents, num_inner_steps, early_stop_epsilon)
         uncond_embeddings, cond_embeddings = self.context.chunk(2)
+        if npi_interp > 0.0:
+            cond_embeddings = ptp_utils.slerp_tensor(npi_interp, cond_embeddings, uncond_embeddings)
         uncond_embeddings = [cond_embeddings] * NUM_DDIM_STEPS
         return (image_gt, image_rec, image_rec_latent), ddim_latents[-1], uncond_embeddings
         
-    
     def __init__(self, model):
         scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False,
                                   set_alpha_to_one=False)
@@ -554,6 +544,7 @@ def main(
         use_reconstruction_guidance=False,
         recon_t=400,
         recon_lr=0.1,
+        npi_interp=0,
         cross_replace_steps=0.4,
         self_replace_steps=0.6,
         blend_word=None,
@@ -583,10 +574,12 @@ def main(
 
     scheduler = DDIMSchedulerDev(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
     ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", scheduler=scheduler).to(device)
-    # tokenizer = ldm_stable.tokenizer
 
     null_inversion = NegativePromptInversion(ldm_stable)
-    (image_gt, image_enc, image_enc_latent), x_t, uncond_embeddings = null_inversion.invert(image_path, prompt_src, offsets=offsets, verbose=True)
+    (image_gt, image_enc, image_enc_latent), x_t, uncond_embeddings = null_inversion.invert(image_path, prompt_src, offsets=offsets, 
+                                                                                            npi_interp=npi_interp, verbose=True)
+    if npi_interp > 0:
+        PREFIX = f'{PREFIX}-interp-{npi_interp}'
     if not os.path.exists(f"{output_dir}/image-gt.png"):
         Image.fromarray(image_gt).save(f"{output_dir}/image-gt.png")
 
