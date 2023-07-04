@@ -96,7 +96,8 @@ def view_images(images, num_rows=1, offset_ratio=0.02, display_image=True):
 
 def diffusion_step(model, controller, latents, context, t, guidance_scale, low_resource=False,
                    inference_stage=True, prox=None, quantile=0.7,
-                   image_enc=None, recon_lr=0.1, recon_t=400):
+                   image_enc=None, recon_lr=0.1, recon_t=400,
+                   inversion_guidance=False, x_stars=None, i=0, **kwargs):
     bs = latents.shape[0]
     if low_resource:
         noise_pred_uncond = model.unet(latents, t, encoder_hidden_states=context[0])["sample"]
@@ -110,6 +111,7 @@ def diffusion_step(model, controller, latents, context, t, guidance_scale, low_r
         'recon_lr': 0,
         'recon_mask': None,
     }
+    mask_edit = None
     if inference_stage and prox is not None:
         if prox == 'l1':
             score_delta = noise_prediction_text - noise_pred_uncond
@@ -123,8 +125,10 @@ def diffusion_step(model, controller, latents, context, t, guidance_scale, low_r
             if (recon_t > 0 and t < recon_t) or (recon_t < 0 and t > -recon_t):
                 step_kwargs['ref_image'] = image_enc
                 step_kwargs['recon_lr'] = recon_lr
-                mask_edit = score_delta.abs() > threshold
-                mask_edit = dilate(mask_edit.float(), kernel_size=3, padding=1)
+                mask_edit = (score_delta.abs() > threshold).float()
+                if kwargs.get('dilate_mask', 0) > 0:
+                    radius = int(kwargs.get('dilate_mask', 0))
+                    mask_edit = dilate(mask_edit.float(), kernel_size=2*radius+1, padding=radius)
                 step_kwargs['recon_mask'] = 1 - mask_edit
         elif prox == 'l0':
             score_delta = noise_prediction_text - noise_pred_uncond
@@ -136,8 +140,10 @@ def diffusion_step(model, controller, latents, context, t, guidance_scale, low_r
             if (recon_t > 0 and t < recon_t) or (recon_t < 0 and t > -recon_t):
                 step_kwargs['ref_image'] = image_enc
                 step_kwargs['recon_lr'] = recon_lr
-                mask_edit = score_delta.abs() > threshold
-                mask_edit = dilate(mask_edit.float(), kernel_size=3, padding=1)
+                mask_edit = (score_delta.abs() > threshold).float()
+                if kwargs.get('dilate_mask', 0) > 0:
+                    radius = int(kwargs.get('dilate_mask', 0))
+                    mask_edit = dilate(mask_edit.float(), kernel_size=2*radius+1, padding=radius)
                 step_kwargs['recon_mask'] = 1 - mask_edit
         else:
             raise NotImplementedError
@@ -146,6 +152,10 @@ def diffusion_step(model, controller, latents, context, t, guidance_scale, low_r
         noise_pred = noise_pred_uncond + guidance_scale * (noise_prediction_text - noise_pred_uncond)
     latents = model.scheduler.step(noise_pred, t, latents,
                                    **step_kwargs)["prev_sample"]
+    if mask_edit is not None and inversion_guidance and (recon_t > 0 and t < recon_t) or (recon_t < 0 and t > -recon_t):
+        recon_mask = 1 - mask_edit
+        latents = latents - recon_lr * (latents - x_stars[len(x_stars)-i-2].expand_as(latents)) * recon_mask
+
     latents = controller.step_callback(latents)
     return latents
 

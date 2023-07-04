@@ -9,7 +9,7 @@ if __name__ == "__main__":
         offsets=(0,0,200,0),
         prompt_src="a cat sitting next to a mirror",
         prompt_tar="a tiger sitting next to a mirror",
-        output_dir="./outputs/cat_mirror",
+        output_dir="./outputs/npi_real/",
         suffix="tiger",
         guidance_scale=9,
         cross_replace_steps=0.7,
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         offsets=(0,0,200,0),
         prompt_src="a cat sitting next to a mirror",
         prompt_tar="a tiger sitting next to a mirror",
-        output_dir="./outputs/cat_mirror",
+        output_dir="./outputs/npi_real/",
         suffix="tiger",
         guidance_scale=9,
         cross_replace_steps=0.7,
@@ -36,7 +36,10 @@ if __name__ == "__main__":
         is_replace_controller=True,
         proximal="l0",
         quantile=0.75,
-        use_reconstruction_guidance=False,
+        use_inversion_guidance=True,
+        recon_lr=1,
+        recon_t=400,
+        dilate_mask=2,
     )
 
     ########## NPI ##########
@@ -44,7 +47,7 @@ if __name__ == "__main__":
         image_path="./images/cat_chair.png",
         prompt_src="A cat sitting on a wooden chair",
         prompt_tar="A dog sitting on a wooden chair",
-        output_dir="./outputs/cat_chair",
+        output_dir="./outputs/npi_real/",
         suffix="dog2",
         guidance_scale=7.5,
         cross_replace_steps=0.4,
@@ -59,7 +62,7 @@ if __name__ == "__main__":
         image_path="./images/cat_chair.png",
         prompt_src="A cat sitting on a wooden chair",
         prompt_tar="A dog sitting on a wooden chair",
-        output_dir="./outputs/cat_chair",
+        output_dir="./outputs/npi_real/",
         suffix="dog",
         guidance_scale=7.5,
         cross_replace_steps=0.4,
@@ -68,7 +71,9 @@ if __name__ == "__main__":
         eq_params="dog,2",
         proximal="l0",
         quantile=0.75,
-        use_reconstruction_guidance=True,
+        use_inversion_guidance=True,
+        recon_lr=1,
+        recon_t=400,
     )
 
     ########## ProxNPI ##########
@@ -76,7 +81,7 @@ if __name__ == "__main__":
         image_path="./images/coffee.jpeg",
         prompt_src="drawing of tulip on the coffee",
         prompt_tar="drawing of lion on the coffee",
-        output_dir="./outputs/coffee",
+        output_dir="./outputs/npi_real/",
         suffix="lion",
         guidance_scale=7.5,
         cross_replace_steps=0.4,

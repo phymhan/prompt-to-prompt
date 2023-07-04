@@ -1,5 +1,7 @@
 images/
 outputs/
+outputs*
+outputs*/
 __pycache__/
 */__pycache__/
 *.png

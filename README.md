@@ -4,8 +4,6 @@ The code is heavily based on the [Prompt-to-Prompt](https://arxiv.org/abs/2208.0
 
 Input images can be downloaded through [this link](https://drive.google.com/file/d/1iUf2XvKpJlpq_7cWHMTeArHCgeb7qs4u/view?usp=sharing). Most images are from the [StyleDiffusion](https://arxiv.org/abs/2303.15649), [Null-Text Inversion](https://arxiv.org/abs/2211.09794), [Imagic](https://arxiv.org/abs/2210.09276), [MasaCtrl](https://arxiv.org/abs/2304.08465), and [SVDiff](https://arxiv.org/abs/2303.11305) papers.
 
-See `run_npi.py` and `run_masa.py` for examples.
-
 ## Examples
 Negative-Prompt Inversion (NPI):
 ```python
@@ -45,8 +43,9 @@ main(
     eq_params={"words": ("silver", 'sculpture', ), "values": (2,2,)},
     proximal='l0',
     quantile=0.7,
-    use_reconstruction_guidance=True,
-    recon_t=300,
+    use_inversion_guidance=True,
+    recon_lr=1,
+    recon_t=400,
 )
 ```
 Reconstructed (left) | Edited (right):
@@ -91,6 +90,7 @@ Input image (left) | Reconstructed (middle) | Edited (right):
 ![cake-proxmasa](docs/prox_masa.png)
 <br>
 
+Please see `run_npi.py` and `run_masa.py` for examples.
 
 ## Citation
 ```bibtex
