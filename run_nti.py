@@ -1,25 +1,3 @@
-# %% [markdown]
-# ## Copyright 2022 Google LLC. Double-click for license information.
-
-# %%
-# Copyright 2022 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-# %% [markdown]
-# # Null-text inversion + Editing with Prompt-to-Prompt
-
-# %%
 from typing import Optional, Union, Tuple, List, Callable, Dict
 from tqdm.notebook import tqdm
 import torch
@@ -33,43 +11,47 @@ import shutil
 from torch.optim.adam import Adam
 from PIL import Image
 import os
+from scheduler_dev import DDIMSchedulerDev
 
-# %% [markdown]
 # For loading the Stable Diffusion using Diffusers, follow the instuctions https://huggingface.co/blog/stable_diffusion and update MY_TOKEN with your token.
+# scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
+scheduler = DDIMSchedulerDev(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
 
-# %%
-scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", clip_sample=False, set_alpha_to_one=False)
 MY_TOKEN = ''
 LOW_RESOURCE = False 
 NUM_DDIM_STEPS = 50
 GUIDANCE_SCALE = 7.5
 MAX_NUM_WORDS = 77
 
-# image_path = "./images/sine/real43.jpeg"
+# image_path = "./images/meat_ball.jpeg"
 # prompt = "meat balls on white plate"
 # output_dir = "./outputs/meat_balls"
 
-# image_path = "./images/sine/edited.jpg"
+# image_path = "./images/van.jpg"
 # # prompt = ""
 # prompt = "orange van with surfboards on top"
 # output_dir = "./outputs/van_surfboards"
 
-# image_path = "./images/sine/cat_chair.png"
+# image_path = "./images/cat_chair.png"
 # prompt = "A cat sitting on a wooden chair"
 # output_dir = "./outputs/cat_chair"
 
-# image_path = "./images/sine/tiger_white.png"
+# image_path = "./images/tiger_white.png"
 # # prompt = ""
 # prompt = "white tiger on brown ground"
 # output_dir = "./outputs/white_tiger"
 
-# image_path = "./images/sine/real38.jpeg"
+# image_path = "./images/plate.jpeg"
 # prompt = "a plate with steak on it"
 # output_dir = "./outputs/plate_steak"
 
-image_path = "./images/sine/woman_blue_hair.png"
-prompt = "A woman with blue hair in the forest"
-output_dir = "./outputs/woman_blue_hair"
+# image_path = "./images/woman_blue_hair.png"
+# prompt = "A woman with blue hair in the forest"
+# output_dir = "./outputs/woman_blue_hair"
+
+image_path = "./images/two_birds.png"
+prompt = "two birds sitting on a branch"
+output_dir = "./outputs/two_birds"
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 ldm_stable = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", scheduler=scheduler).to(device)
@@ -82,10 +64,6 @@ PREFIX = 'null'
 #     print("Attribute disable_xformers_memory_efficient_attention() is missing")
 tokenizer = ldm_stable.tokenizer
 
-# %% [markdown]
-# ## Prompt-to-Prompt code
-
-# %%
 
 class LocalBlend:
     
@@ -139,13 +117,10 @@ class LocalBlend:
         self.start_blend = int(start_blend * NUM_DDIM_STEPS)
         self.counter = 0 
         self.th=th
-
-
         
         
 class EmptyControl:
-    
-    
+
     def step_callback(self, x_t):
         return x_t
     
@@ -155,7 +130,7 @@ class EmptyControl:
     def __call__(self, attn, is_cross: bool, place_in_unet: str):
         return attn
 
-    
+
 class AttentionControl(abc.ABC):
     
     def step_callback(self, x_t):
@@ -195,6 +170,7 @@ class AttentionControl(abc.ABC):
         self.num_att_layers = -1
         self.cur_att_layer = 0
 
+
 class SpatialReplace(EmptyControl):
     
     def step_callback(self, x_t):
@@ -206,7 +182,7 @@ class SpatialReplace(EmptyControl):
     def __init__(self, stop_inject: float):
         super(SpatialReplace, self).__init__()
         self.stop_inject = int((1 - stop_inject) * NUM_DDIM_STEPS)
-        
+
 
 class AttentionStore(AttentionControl):
 
@@ -245,7 +221,7 @@ class AttentionStore(AttentionControl):
         self.step_store = self.get_empty_store()
         self.attention_store = {}
 
-        
+
 class AttentionControlEdit(AttentionStore, abc.ABC):
     
     def step_callback(self, x_t):
@@ -291,11 +267,12 @@ class AttentionControlEdit(AttentionStore, abc.ABC):
         self.num_self_replace = int(num_steps * self_replace_steps[0]), int(num_steps * self_replace_steps[1])
         self.local_blend = local_blend
 
+
 class AttentionReplace(AttentionControlEdit):
 
     def replace_cross_attention(self, attn_base, att_replace):
         return torch.einsum('hpw,bwn->bhpn', attn_base, self.mapper)
-      
+
     def __init__(self, prompts, num_steps: int, cross_replace_steps: float, self_replace_steps: float,
                  local_blend: Optional[LocalBlend] = None):
         super(AttentionReplace, self).__init__(prompts, num_steps, cross_replace_steps, self_replace_steps, local_blend)
@@ -406,10 +383,8 @@ def show_self_attention_comp(attention_store: AttentionStore, res: int, from_whe
         images.append(image)
     ptp_utils.view_images(np.concatenate(images, axis=1))
 
-# %% [markdown]
-# ## Null Text Inversion code
 
-# %%
+# ## Null Text Inversion code
 def load_512(image_path, left=0, right=0, top=0, bottom=0):
     if type(image_path) is str:
         image = np.array(Image.open(image_path))[:, :, :3]
@@ -595,11 +570,6 @@ class NullInversion:
 
 null_inversion = NullInversion(ldm_stable)
 
-
-# %% [markdown]
-# ## Infernce Code
-
-# %%
 @torch.no_grad()
 def text2image_ldm_stable(
     model,
@@ -650,7 +620,6 @@ def text2image_ldm_stable(
     return image, latent
 
 
-
 def run_and_display(prompts, controller, latent=None, run_baseline=False, generator=None, uncond_embeddings=None, verbose=True):
     if run_baseline:
         print("w.o. prompt-to-prompt")
@@ -661,15 +630,13 @@ def run_and_display(prompts, controller, latent=None, run_baseline=False, genera
         ptp_utils.view_images(images)
     return images, x_t
 
-# %%
-# image_path = "./example_images/gnochi_mirror.jpeg"
-# prompt = "a cat sitting next to a mirror"
+
+os.makedirs(output_dir, exist_ok=True)
 (image_gt, image_enc), x_t, uncond_embeddings = null_inversion.invert(image_path, prompt, offsets=(0,0,0,0), verbose=True)
 if not os.path.exists(f"{output_dir}/image-gt.png"):
     Image.fromarray(image_gt).save(f"{output_dir}/image-gt.png")
 print("Modify or remove offsets according to your image!")
 
-# %%
 prompts = [prompt]
 controller = AttentionStore()
 image_inv, x_t = run_and_display(prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings, verbose=False)
@@ -764,16 +731,31 @@ inference_kwargs = {}
 #                             **inference_kwargs)
 # Image.fromarray(np.concatenate(images, axis=1)).save(f"{output_dir}/{PREFIX}-1.png")
 
+# ########## edit ##########
+# prompts = ["A woman with blue hair  in the forest",
+#            "A storm-trooper with blue hair  in the forest"
+#         ]
+# cross_replace_steps = {'default_': .4,}
+# self_replace_steps = .6
+# blend_word = None
+# blend_word = ((('woman',), ("storm-trooper",))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
+# eq_params = {"words": ("storm-trooper",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+# controller = make_controller(prompts, False, cross_replace_steps, self_replace_steps, blend_word, eq_params)
+# images, _ = run_and_display(prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings,
+#                             **inference_kwargs)
+# Image.fromarray(np.concatenate(images, axis=1)).save(f"{output_dir}/{PREFIX}-10.png")
+
+
 ########## edit ##########
-prompts = ["A woman with blue hair  in the forest",
-           "A storm-trooper with blue hair  in the forest"
+prompts = ["two birds sitting on a branch",
+           "two origami birds sitting on a branch"
         ]
 cross_replace_steps = {'default_': .4,}
-self_replace_steps = .6
+self_replace_steps = .5
 blend_word = None
-blend_word = ((('woman',), ("storm-trooper",))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
-eq_params = {"words": ("storm-trooper",), "values": (2,)} # amplify attention to the word "tiger" by *2 
+blend_word = ((('birds',), ("birds",))) # for local edit. If it is not local yet - use only the source object: blend_word = ((('cat',), ("cat",))).
+eq_params = {"words": ("origami",), "values": (2,)} # amplify attention to the word "tiger" by *2 
 controller = make_controller(prompts, False, cross_replace_steps, self_replace_steps, blend_word, eq_params)
 images, _ = run_and_display(prompts, controller, run_baseline=False, latent=x_t, uncond_embeddings=uncond_embeddings,
                             **inference_kwargs)
-Image.fromarray(np.concatenate(images, axis=1)).save(f"{output_dir}/{PREFIX}-10.png")
+Image.fromarray(np.concatenate(images, axis=1)).save(f"{output_dir}/{PREFIX}-origami.png")

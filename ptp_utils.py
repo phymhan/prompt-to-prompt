@@ -150,8 +150,7 @@ def diffusion_step(model, controller, latents, context, t, guidance_scale, low_r
         noise_pred = noise_pred_uncond + guidance_scale * score_delta
     else:
         noise_pred = noise_pred_uncond + guidance_scale * (noise_prediction_text - noise_pred_uncond)
-    latents = model.scheduler.step(noise_pred, t, latents,
-                                   **step_kwargs)["prev_sample"]
+    latents = model.scheduler.step(noise_pred, t, latents, **step_kwargs)["prev_sample"]
     if mask_edit is not None and inversion_guidance and (recon_t > 0 and t < recon_t) or (recon_t < 0 and t > -recon_t):
         recon_mask = 1 - mask_edit
         latents = latents - recon_lr * (latents - x_stars[len(x_stars)-i-2].expand_as(latents)) * recon_mask
