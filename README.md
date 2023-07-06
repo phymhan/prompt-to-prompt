@@ -1,6 +1,6 @@
 # Improving Tuning-Free Real Image Editing via Proximal Guidance
 
-<a href='https://arxiv.org/abs/2306.05414'><img src='https://img.shields.io/badge/ArXiv-2303.09535-red'></a> 
+<a href='https://arxiv.org/abs/2306.05414'><img src='https://img.shields.io/badge/ArXiv-2306.05414-red'></a> 
 
 The code is heavily based on the [Prompt-to-Prompt](https://arxiv.org/abs/2208.01626), [Null-Text Inversion](https://arxiv.org/abs/2211.09794) [[**codebase**](https://github.com/google/prompt-to-prompt)] and on the [MasaCtrl](https://arxiv.org/abs/2304.08465) [[**codebase**](https://github.com/TencentARC/MasaCtrl)].
 
