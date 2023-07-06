@@ -3,113 +3,113 @@
 if __name__ == "__main__":
     from negative_prompt_inversion import main
 
-    # ########## NPI ##########
-    # main(
-    #     image_path="./example_images/gnochi_mirror.jpeg",
-    #     offsets=(0,0,200,0),
-    #     prompt_src="a cat sitting next to a mirror",
-    #     prompt_tar="a tiger sitting next to a mirror",
-    #     output_dir="./outputs/npi_real/",
-    #     suffix="cat2tiger",
-    #     guidance_scale=9,
-    #     cross_replace_steps=0.7,
-    #     self_replace_steps=0.6,
-    #     blend_word=((('cat',), ("tiger",))),
-    #     eq_params={"words": ("tiger",), "values": (2,)},
-    #     is_replace_controller=True,
-    #     proximal=None,
-    # )
+    ########## NPI ##########
+    main(
+        image_path="./example_images/gnochi_mirror.jpeg",
+        offsets=(0,0,200,0),
+        prompt_src="a cat sitting next to a mirror",
+        prompt_tar="a tiger sitting next to a mirror",
+        output_dir="./outputs/npi_real/",
+        suffix="cat2tiger",
+        guidance_scale=9,
+        cross_replace_steps=0.7,
+        self_replace_steps=0.6,
+        blend_word=((('cat',), ("tiger",))),
+        eq_params={"words": ("tiger",), "values": (2,)},
+        is_replace_controller=True,
+        proximal=None,
+    )
 
-    # ########## ProxNPI ##########
-    # main(
-    #     image_path="./example_images/gnochi_mirror.jpeg",
-    #     offsets=(0,0,200,0),
-    #     prompt_src="a cat sitting next to a mirror",
-    #     prompt_tar="a tiger sitting next to a mirror",
-    #     output_dir="./outputs/npi_real/",
-    #     suffix="cat2tiger",
-    #     guidance_scale=9,
-    #     cross_replace_steps=0.7,
-    #     self_replace_steps=0.6,
-    #     blend_word=((('cat',), ("tiger",))),
-    #     eq_params={"words": ("tiger",), "values": (2,)},
-    #     is_replace_controller=True,
-    #     proximal="l0",
-    #     quantile=0.75,
-    #     use_inversion_guidance=True,
-    #     recon_lr=1,
-    #     recon_t=400,
-    #     dilate_mask=2,
-    # )
+    ########## ProxNPI ##########
+    main(
+        image_path="./example_images/gnochi_mirror.jpeg",
+        offsets=(0,0,200,0),
+        prompt_src="a cat sitting next to a mirror",
+        prompt_tar="a tiger sitting next to a mirror",
+        output_dir="./outputs/npi_real/",
+        suffix="cat2tiger",
+        guidance_scale=9,
+        cross_replace_steps=0.7,
+        self_replace_steps=0.6,
+        blend_word=((('cat',), ("tiger",))),
+        eq_params={"words": ("tiger",), "values": (2,)},
+        is_replace_controller=True,
+        proximal="l0",
+        quantile=0.75,
+        use_inversion_guidance=True,
+        recon_lr=1,
+        recon_t=400,
+        dilate_mask=2,
+    )
 
-    # ########## NPI ##########
-    # main(
-    #     image_path="./images/cat_chair.png",
-    #     prompt_src="A cat sitting on a wooden chair",
-    #     prompt_tar="A dog sitting on a wooden chair",
-    #     output_dir="./outputs/npi_real/",
-    #     suffix="cat2dog",
-    #     guidance_scale=7.5,
-    #     cross_replace_steps=0.4,
-    #     self_replace_steps=0.6,
-    #     blend_word="cat,dog",
-    #     eq_params="dog,2",
-    #     proximal=None,
-    # )
+    ########## NPI ##########
+    main(
+        image_path="./images/cat_chair.png",
+        prompt_src="A cat sitting on a wooden chair",
+        prompt_tar="A dog sitting on a wooden chair",
+        output_dir="./outputs/npi_real/",
+        suffix="cat2dog",
+        guidance_scale=7.5,
+        cross_replace_steps=0.4,
+        self_replace_steps=0.6,
+        blend_word="cat,dog",
+        eq_params="dog,2",
+        proximal=None,
+    )
 
-    # ########## ProxNPI ##########
-    # main(
-    #     image_path="./images/cat_chair.png",
-    #     prompt_src="A cat sitting on a wooden chair",
-    #     prompt_tar="A dog sitting on a wooden chair",
-    #     output_dir="./outputs/npi_real/",
-    #     suffix="cat2dog",
-    #     guidance_scale=7.5,
-    #     cross_replace_steps=0.4,
-    #     self_replace_steps=0.6,
-    #     blend_word="cat,dog",
-    #     eq_params="dog,2",
-    #     proximal="l0",
-    #     quantile=0.75,
-    #     use_inversion_guidance=True,
-    #     recon_lr=1,
-    #     recon_t=400,
-    # )
+    ########## ProxNPI ##########
+    main(
+        image_path="./images/cat_chair.png",
+        prompt_src="A cat sitting on a wooden chair",
+        prompt_tar="A dog sitting on a wooden chair",
+        output_dir="./outputs/npi_real/",
+        suffix="cat2dog",
+        guidance_scale=7.5,
+        cross_replace_steps=0.4,
+        self_replace_steps=0.6,
+        blend_word="cat,dog",
+        eq_params="dog,2",
+        proximal="l0",
+        quantile=0.75,
+        use_inversion_guidance=True,
+        recon_lr=1,
+        recon_t=400,
+    )
 
-    # ########## ProxNPI ##########
-    # main(
-    #     image_path="./images/coffee.jpeg",
-    #     prompt_src="drawing of tulip on the coffee",
-    #     prompt_tar="drawing of lion on the coffee",
-    #     output_dir="./outputs/npi_real/",
-    #     suffix="tulip2lion",
-    #     guidance_scale=7.5,
-    #     cross_replace_steps=0.4,
-    #     self_replace_steps=0.5,
-    #     blend_word="tulip,lion",
-    #     eq_params="lion,2",
-    #     proximal="l0",
-    #     quantile=0.7,
-    # )
+    ########## ProxNPI ##########
+    main(
+        image_path="./images/coffee.jpeg",
+        prompt_src="drawing of tulip on the coffee",
+        prompt_tar="drawing of lion on the coffee",
+        output_dir="./outputs/npi_real/",
+        suffix="tulip2lion",
+        guidance_scale=7.5,
+        cross_replace_steps=0.4,
+        self_replace_steps=0.5,
+        blend_word="tulip,lion",
+        eq_params="lion,2",
+        proximal="l0",
+        quantile=0.7,
+    )
 
-    # # More ProxNPI examples
-    # main(
-    #     image_path="./images/tiger_white.png",
-    #     prompt_src="white tiger on brown ground",
-    #     prompt_tar="white cat on brown ground",
-    #     output_dir="./outputs/npi_real/",
-    #     suffix="tiger2cat",
-    #     guidance_scale=7.5,
-    #     cross_replace_steps=0.4,
-    #     self_replace_steps=0.6,
-    #     blend_word="tiger,cat",
-    #     eq_params="cat,2",
-    #     proximal="l0",
-    #     quantile=0.7,
-    #     use_inversion_guidance=True,
-    #     recon_lr=0.5,
-    #     recon_t=600,
-    # )
+    # More ProxNPI examples
+    main(
+        image_path="./images/tiger_white.png",
+        prompt_src="white tiger on brown ground",
+        prompt_tar="white cat on brown ground",
+        output_dir="./outputs/npi_real/",
+        suffix="tiger2cat",
+        guidance_scale=7.5,
+        cross_replace_steps=0.4,
+        self_replace_steps=0.6,
+        blend_word="tiger,cat",
+        eq_params="cat,2",
+        proximal="l0",
+        quantile=0.7,
+        use_inversion_guidance=True,
+        recon_lr=0.5,
+        recon_t=600,
+    )
 
     main(
         image_path="./images/plate_fruit.jpeg",
