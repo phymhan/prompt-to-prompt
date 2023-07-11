@@ -2,7 +2,7 @@
 
 <a href='https://arxiv.org/abs/2306.05414'><img src='https://img.shields.io/badge/ArXiv-2306.05414-red'></a> 
 
-The code is heavily based on the [Prompt-to-Prompt](https://arxiv.org/abs/2208.01626), [Null-Text Inversion](https://arxiv.org/abs/2211.09794) [[**codebase**](https://github.com/google/prompt-to-prompt)] and on the [MasaCtrl](https://arxiv.org/abs/2304.08465) [[**codebase**](https://github.com/TencentARC/MasaCtrl)].
+The code is heavily based on the [Prompt-to-Prompt](https://arxiv.org/abs/2208.01626), [Null-Text Inversion](https://arxiv.org/abs/2211.09794) [[**codebase**](https://github.com/google/prompt-to-prompt)], the [MasaCtrl](https://arxiv.org/abs/2304.08465) [[**codebase**](https://github.com/TencentARC/MasaCtrl)], and the [DDPM-Inversion](http://arxiv.org/abs/2304.06140) [[**codebase**](https://github.com/inbarhub/DDPM_inversion)].
 
 Input images can be downloaded through [this link](https://drive.google.com/file/d/1iUf2XvKpJlpq_7cWHMTeArHCgeb7qs4u/view?usp=sharing). Most images are from the [StyleDiffusion](https://arxiv.org/abs/2303.15649), [Null-Text Inversion](https://arxiv.org/abs/2211.09794), [Imagic](https://arxiv.org/abs/2210.09276), [MasaCtrl](https://arxiv.org/abs/2304.08465), and [SVDiff](https://arxiv.org/abs/2303.11305) papers.
 
@@ -92,7 +92,7 @@ Input image (left) | Reconstructed (middle) | Edited (right):
 ![cake-proxmasa](docs/prox_masa.png)
 <br>
 
-Please see `run_npi.py` and `run_masa.py` for examples.
+Please see `run_npi.py`, `run_masa.py` and `run_ddpm.py` for examples.
 
 ## Citation
 ```bibtex
@@ -147,5 +147,14 @@ Please see `run_npi.py` and `run_masa.py` for examples.
   author={Song, Jiaming and Meng, Chenlin and Ermon, Stefano},
   journal={arXiv preprint arXiv:2010.02502},
   year={2020}
+}
+```
+
+```bibtex
+@article{HubermanSpiegelglas2023,
+  title      = {An Edit Friendly DDPM Noise Space: Inversion and Manipulations},
+  author     = {Huberman-Spiegelglas, Inbar and Kulikov, Vladimir and Michaeli, Tomer},
+  journal    = {arXiv preprint arXiv:2304.06140},
+  year       = {2023}
 }
 ```
