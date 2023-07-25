@@ -262,7 +262,9 @@ def register_attention_control(model, controller):
         else:
             to_out = self.to_out
 
-        def forward(x, context=None, mask=None):
+        def forward(x, context=None, mask=None, **kwargs):
+            if isinstance(context, dict):  # NOTE: compatible with ELITE (0.11.1)
+                context = context['CONTEXT_TENSOR']
             batch_size, sequence_length, dim = x.shape
             h = self.heads
             q = self.to_q(x)
@@ -323,7 +325,7 @@ def register_attention_control(model, controller):
 
     controller.num_att_layers = cross_att_count
 
-    
+
 def get_word_inds(text: str, word_place: int, tokenizer):
     split_text = text.split(" ")
     if type(word_place) is str:

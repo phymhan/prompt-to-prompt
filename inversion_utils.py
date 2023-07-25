@@ -359,3 +359,240 @@ def inversion_reverse_process(model,
         if controller is not None:
             xt = controller.step_callback(xt)
     return xt, zs
+
+
+""" Modified for ELITE
+"""
+from utils import find_token_indices_batch
+
+@torch.no_grad()
+def encode_text_elite(model, prompts, ref_images=None, token_index='0'):
+    if ref_images is not None:
+        input_ids = model.tokenizer(
+            prompts,
+            padding="max_length",
+            truncation=True,
+            max_length=model.tokenizer.model_max_length,
+            return_tensors="pt",
+        ).input_ids.to(model.device)
+        ref_images = model.process_images_clip(ref_images)
+        ref_images = ref_images.to(model.device)
+        image_features = model.image_encoder(ref_images, output_hidden_states=True)
+        image_embeddings = [image_features[0], image_features[2][4], image_features[2][8], image_features[2][12],
+                            image_features[2][16]]
+        image_embeddings = [emb.detach() for emb in image_embeddings]
+        inj_embedding = model.mapper(image_embeddings)  # [batch_size, 5, 768]
+        if token_index != 'full':  # NOTE: truncate inj_embedding
+            if ':' in token_index:
+                token_index = token_index.split(':')
+                token_index = slice(int(token_index[0]), int(token_index[1]))
+            else:
+                token_index = slice(int(token_index), int(token_index) + 1)
+            inj_embedding = inj_embedding[:, token_index, :]
+        placeholder_idx = find_token_indices_batch(model.tokenizer, prompts, "*")
+        text_encoding = model.text_encoder({
+            "input_ids": input_ids,
+            "inj_embedding": inj_embedding,
+            "inj_index": placeholder_idx})[0]
+    else:
+        uncond_input = model.tokenizer(
+            prompts,
+            padding="max_length",
+            max_length=model.tokenizer.model_max_length,
+            return_tensors="pt",
+        )
+        text_encoding = model.text_encoder({'input_ids': uncond_input.input_ids.to(model.device)})[0]
+    return text_encoding
+
+
+@torch.no_grad()
+def inversion_reverse_process_elite(
+    model,
+    xT,
+    etas=0,
+    prompts="",
+    prompts_null="",
+    ref_image=None,
+    cfg_scales=None,
+    prog_bar=False,
+    zs=None,
+    controller=None,
+    asyrp=False,
+    prox=None,
+    quantile=0.7
+):
+
+    batch_size = len(prompts)
+
+    cfg_scales_tensor = torch.Tensor(cfg_scales).view(-1, 1, 1, 1).to(
+        model.device, dtype=torch.float16)
+
+    text_embeddings = encode_text_elite(model, prompts, ref_image)
+    uncond_embedding = encode_text_elite(model, prompts_null, None)
+
+    if etas is None: etas = 0
+    if type(etas) in [int, float]:
+        etas = [etas] * model.scheduler.num_inference_steps
+    assert len(etas) == model.scheduler.num_inference_steps
+    timesteps = model.scheduler.timesteps.to(model.device)
+
+    xt = xT.expand(batch_size, -1, -1, -1)
+    op = tqdm(
+        timesteps[-zs.shape[0]:]) if prog_bar else timesteps[-zs.shape[0]:]
+
+    t_to_idx = {int(v): k for k, v in enumerate(timesteps[-zs.shape[0]:])}
+
+    for t in op:
+        idx = t_to_idx[int(t)]
+        ## Unconditional embedding
+        uncond_out = model.unet.forward(
+            xt,
+            timestep=t,
+            encoder_hidden_states={
+                "CONTEXT_TENSOR": uncond_embedding,
+            }
+        )
+
+        ## Conditional embedding
+        if prompts:
+            cond_out = model.unet.forward(
+                xt,
+                timestep=t,
+                encoder_hidden_states={
+                    "CONTEXT_TENSOR": text_embeddings,
+                }
+            )
+
+        z = zs[idx] if not zs is None else None
+        z = z.expand(batch_size, -1, -1, -1)
+        if prompts:
+            ## classifier free guidance
+            if prox == 'l0' or prox == 'l1':
+                score_delta = cond_out.sample - uncond_out.sample
+                threshold = score_delta.abs().quantile(quantile)
+                score_delta -= score_delta.clamp(-threshold, threshold)
+                if prox == 'l1':
+                    score_delta = torch.where(score_delta > 0, score_delta-threshold, score_delta)
+                    score_delta = torch.where(score_delta < 0, score_delta+threshold, score_delta)
+                noise_pred = uncond_out.sample + cfg_scales_tensor * score_delta
+            else:
+                noise_pred = uncond_out.sample + cfg_scales_tensor * (
+                    cond_out.sample - uncond_out.sample)
+        else:
+            noise_pred = uncond_out.sample
+        # 2. compute less noisy image and set x_t -> x_t-1
+        xt = reverse_step(model,
+                          noise_pred,
+                          t,
+                          xt,
+                          eta=etas[idx],
+                          variance_noise=z)
+        if controller is not None:
+            xt = controller.step_callback(xt)
+    return xt, zs
+
+
+@torch.no_grad()
+def inversion_forward_process_elite(
+    model,
+    x0,
+    etas=None,
+    prog_bar=False,
+    prompt="",
+    ref_image=None,
+    cfg_scale=3.5,
+    num_inference_steps=50,
+    eps=None,
+    correlated_noise=False,
+):
+    if not prompt == "":
+        text_embeddings = encode_text_elite(model, prompt, ref_image)
+    uncond_embedding = encode_text_elite(model, "", None)
+    timesteps = model.scheduler.timesteps.to(model.device)
+    variance_noise_shape = (num_inference_steps, model.unet.in_channels,
+                            model.unet.sample_size, model.unet.sample_size)
+    if etas is None or (type(etas) in [int, float] and etas == 0):
+        eta_is_zero = True
+        zs = None
+    else:
+        eta_is_zero = False
+        if type(etas) in [int, float]:
+            etas = [etas] * model.scheduler.num_inference_steps
+        if not correlated_noise:
+            xts = sample_xts_from_x0(
+                model,
+                x0,
+                num_inference_steps=num_inference_steps)
+        else:
+            xts = sample_xts_from_x0_mc(
+                model,
+                x0,
+                num_inference_steps=num_inference_steps)
+        alpha_bar = model.scheduler.alphas_cumprod
+        zs = torch.zeros(size=variance_noise_shape,
+                         device=model.device,
+                         dtype=torch.float16)
+
+    t_to_idx = {int(v): k for k, v in enumerate(timesteps)}
+    xt = x0
+    op = tqdm(reversed(timesteps),
+              desc="Inverting...") if prog_bar else reversed(timesteps)
+
+    for t in op:
+        idx = t_to_idx[int(t)]
+        # 1. predict noise residual
+        if not eta_is_zero:
+            xt = xts[idx][None]
+
+        out = model.unet.forward(
+            xt,
+            timestep=t,
+            encoder_hidden_states={"CONTEXT_TENSOR": uncond_embedding}
+        )
+        if not prompt == "":
+            cond_out = model.unet.forward(
+                xt,
+                timestep=t,
+                encoder_hidden_states={"CONTEXT_TENSOR": text_embeddings}
+            )
+
+        if not prompt == "":
+            ## classifier free guidance
+            noise_pred = out.sample + cfg_scale * (cond_out.sample -
+                                                   out.sample)
+        else:
+            noise_pred = out.sample
+
+        if eta_is_zero:
+            # 2. compute more noisy image and set x_t -> x_t+1
+            xt = forward_step(model, noise_pred, t, xt)
+
+        else:
+            xtm1 = xts[idx + 1][None]
+            # pred of x0
+            pred_original_sample = (
+                xt - (1 - alpha_bar[t])**0.5 * noise_pred) / alpha_bar[t]**0.5
+
+            # direction to xt
+            prev_timestep = t - model.scheduler.config.num_train_timesteps // model.scheduler.num_inference_steps
+            alpha_prod_t_prev = model.scheduler.alphas_cumprod[
+                prev_timestep] if prev_timestep >= 0 else model.scheduler.final_alpha_cumprod
+
+            variance = get_variance(model, t)
+            pred_sample_direction = (1 - alpha_prod_t_prev -
+                                     etas[idx] * variance)**(0.5) * noise_pred
+
+            mu_xt = alpha_prod_t_prev**(
+                0.5) * pred_original_sample + pred_sample_direction
+
+            z = (xtm1 - mu_xt) / (etas[idx] * variance**0.5)
+            zs[idx] = z
+
+            # correction to avoid error accumulation
+            xtm1 = mu_xt + (etas[idx] * variance**0.5) * z
+            xts[idx + 1] = xtm1
+
+    if not zs is None:
+        zs[-1] = torch.zeros_like(zs[-1])
+
+    return xt, zs, xts

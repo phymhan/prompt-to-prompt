@@ -1,7 +1,9 @@
 images/
+images_elite
 outputs/
 outputs*
 outputs*/
+debug/
 __pycache__/
 */__pycache__/
 *.png
@@ -17,3 +19,6 @@ __pycache__/
 *.aux
 *.zip
 debug*.py
+prox_npi.py
+pipeline_elite_local.py
+checkpoint*

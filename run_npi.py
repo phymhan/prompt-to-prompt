@@ -164,3 +164,49 @@ if __name__ == "__main__":
         recon_lr=0.1,
         recon_t=1000,
     )
+
+    # ---------- ProxNPI with ELITE ----------
+    from prox_npi_elite import main
+    main(
+        image_path="./images/cat1.png",
+        ref_image_path="./images_elite/1.jpg",
+        prompt_src="a cat sitting",
+        prompt_tar="a S sitting",
+        output_dir="./outputs/npi_real_elite/",
+        suffix="",
+        guidance_scale=10,
+        cross_replace_steps=0.3,
+        self_replace_steps=0.6,
+        blend_word=((('cat',), ("S",))),
+        eq_params={"words": ("S",), "values": (5,)},
+        token_index="0:3",
+        is_replace_controller=False,
+        proximal='l0',
+        quantile=0.6,
+        npi_interp=0,
+        use_inversion_guidance=True,
+        recon_lr=0.5,
+        recon_t=600,
+    )
+
+    main(
+        image_path="./images/yellow_cat.jpeg",
+        ref_image_path="./images_elite/20.jpg",
+        prompt_src="a cat sitting on ground",
+        prompt_tar="a S sitting on ground",
+        output_dir="./outputs/npi_real_elite/",
+        suffix="",
+        guidance_scale=10,
+        cross_replace_steps=0.4,
+        self_replace_steps=0.6,
+        blend_word=((('cat',), ("S",))),
+        eq_params={"words": ("S",), "values": (5,)},
+        token_index="0:3",
+        is_replace_controller=False,
+        proximal='l0',
+        quantile=0.6,
+        npi_interp=0,
+        use_inversion_guidance=True,
+        recon_lr=0.5,
+        recon_t=600,
+    )
