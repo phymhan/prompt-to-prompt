@@ -96,11 +96,12 @@ Please see `run_npi.py`, `run_masa.py` and `run_ddpm.py` for examples.
 
 ## Citation
 ```bibtex
-@article{han2023improving,
-  title={Improving Negative-Prompt Inversion via Proximal Guidance},
-  author={Han, Ligong and Wen, Song and Chen, Qi and Zhang, Zhixing and Song, Kunpeng and Ren, Mengwei and Gao, Ruijiang and Chen, Yuxiao and Liu, Di and Zhangli, Qilong and others},
-  journal={arXiv preprint arXiv:2306.05414},
-  year={2023}
+@inproceedings{han2024proxedit,
+  title={ProxEdit: Improving Tuning-Free Real Image Editing With Proximal Guidance},
+  author={Han, Ligong and Wen, Song and Chen, Qi and Zhang, Zhixing and Song, Kunpeng and Ren, Mengwei and Gao, Ruijiang and Stathopoulos, Anastasis and He, Xiaoxiao and Chen, Yuxiao and others},
+  booktitle={Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision},
+  pages={4291--4301},
+  year={2024}
 }
 ```
 
